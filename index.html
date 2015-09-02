@@ -1,0 +1,310 @@
+<html lang="en">
+<head>
+<link rel="stylesheet" href="bootstrap.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+
+<style>
+.has-spinner .fa-spinner {
+  opacity: 0;
+  max-width: 0;
+
+  -webkit-transition: opacity 0.25s, max-width 0.45s; 
+  -moz-transition: opacity 0.25s, max-width 0.45s;
+  -o-transition: opacity 0.25s, max-width 0.45s;
+  transition: opacity 0.25s, max-width 0.45s; /* Duration fixed since we animate additional hidden width */
+}
+
+.has-spinner.active {
+  cursor:progress;
+}
+
+.has-spinner.active .fa-spinner {
+  opacity: 1;
+  max-width: 50px; /* More than it will ever come, notice that this affects on animation duration */
+  margin-right:10px;
+}
+</style>
+<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script>
+function xmlToJson(xml) {
+    
+    // Create the return object
+    var obj = {};
+
+    if (xml.nodeType == 1) { // element
+        // do attributes
+        if (xml.attributes.length > 0) {
+        obj["@attributes"] = {};
+            for (var j = 0; j < xml.attributes.length; j++) {
+                var attribute = xml.attributes.item(j);
+                obj["@attributes"][attribute.nodeName] = attribute.nodeValue;
+            }
+        }
+    } else if (xml.nodeType == 3) { // text
+        obj = xml.nodeValue;
+    }
+
+    // do children
+    if (xml.hasChildNodes()) {
+        for(var i = 0; i < xml.childNodes.length; i++) {
+            var item = xml.childNodes.item(i);
+            var nodeName = item.nodeName;
+            if (typeof(obj[nodeName]) == "undefined") {
+                obj[nodeName] = xmlToJson(item);
+            } else {
+                if (typeof(obj[nodeName].push) == "undefined") {
+                    var old = obj[nodeName];
+                    obj[nodeName] = [];
+                    obj[nodeName].push(old);
+                }
+                obj[nodeName].push(xmlToJson(item));
+            }
+        }
+    }
+    return obj;
+};
+function make_base_auth(user, password) {
+  var tok = user + ':' + password;
+  var hash = btoa(tok);
+  return "Basic " + hash;
+}
+$(document).ready(function(){
+    $('#movieBox').hide();
+    var plexToken = localStorage.getItem('userToken');
+    console.log(plexToken);
+    if(plexToken != null){
+        $('#plexLoginForm :input').attr('disabled', true);
+        $('#loginButton').attr('disabled', true);
+        $('#alreadyLogged').show();
+        $('#logOut').show();
+        $('#logOut').click(function(){
+            localStorage.removeItem('userToken');
+            location.reload();
+        });
+    }
+    else{
+        $('#alreadyLogged').hide();
+        $('#logOut').hide();
+        $('#plexLoginForm :input').attr('disabled', false);
+        $('#loginButton').attr('disabled', false);
+        $('#loginButton').click(function(){
+            $.ajax ({
+                type: "POST",
+                url: "https://plex.tv/users/sign_in.xml",
+                crossDomain: "true",
+                headers: {
+                    'Authorization': make_base_auth($('#plexUsername').val(), $('#plexPassword').val()),
+                    'X-Plex-Client-Identifier': "PowerShell-Test",
+                    'X-Plex-Product': 'PowerShell-Test',
+                    'X-Plex-Version': "V0.01",
+                    'X-Plex-Username': $('#plexUsername').val()
+                },
+                error: function (error) {
+                    console.log(error.statusText);
+                    $('#topPageError').html("Error Code: " + error.status + " Error Message: " + error.statusText);
+                    $('#loginError').toggleClass('hidden');
+                },
+                success: function (data) {
+                    var authToken = xmlToJson(data);
+                    authToken = authToken['user']['@attributes']['authenticationToken'];
+                    console.log(authToken);
+                    localStorage.setItem('userToken', authToken);
+                    $('#loginSuccess').toggleClass('hidden');
+                    location.reload();
+                }
+            });
+        });
+    }
+});
+$(document).ready(function(){
+    $('#plexSecID').click(function(){
+        console.log($('#plexURL').val());
+        if($('#plexURL').val() == ""){
+            alert("Plex URL Empty");
+        }
+        else{
+            if($('#usePort').is(':checked')){
+                var plexURL = $('#plexURL').val() + ":" + $('#plexPort').val() + "/library/sections/";
+            }
+            else{
+                var plexURL = $('#plexURL').val() + "/library/sections/";
+            }
+            $.ajax({
+                url: plexURL,
+                dataType: 'json',
+                headers: {
+                    "Accept":"application/json",
+                    'X-Plex-Token': localStorage.getItem('userToken')
+                },
+                success: function(res) {
+                    var sections = res;
+                    $('#sections').toggle();
+                    console.log(sections);
+                    sections = sections['_children'];
+                    $.each(sections, function(idx, obj) {
+                        $("<tr><td>"+obj['title']+"</td><td>"+obj['key']+"</td></tr>").insertAfter("#sectionList")
+                    });
+                },
+                complete : function(){
+                }
+            });
+
+        }
+    });
+    $('#spinButton').click(function(){
+        console.log($('#plexURL').val());
+        if($('#plexURL').val() == ""){
+            alert("Plex URL Empty");
+        }
+        else{
+            if($('#usePort').is(':checked')){
+                var plexURL = $('#plexURL').val() + ":" + $('#plexPort').val() + "/library/sections/" + $('#plexSectionID').val() + "/unwatched";
+            }
+            else{
+                var plexURL = $('#plexURL').val() + "/library/sections/"+$('#plexSectionID').val()+"/unwatched";
+            }
+            console.log(plexURL)
+            var movieTitles = [];
+            var movieYears = [];
+            var movieSummary = [];
+            var movieLinks = [];
+            $.ajax({
+                url: plexURL,
+                dataType: 'json',
+                headers: {
+                    "Accept":"application/json",
+                    'X-Plex-Token': localStorage.getItem('userToken')
+                },
+                beforeSend:function(){
+                    $('#spinButton').toggleClass('active');
+                },
+                success: function(res) {
+                    var movieList = res;
+                    movieList = movieList['_children'];
+                    $.each(movieList, function(idx, obj) {
+                        movieTitles.push(obj['title']);
+                        movieYears.push(obj['year']);
+                        movieSummary.push(obj['summary']);
+                        movieLinks.push(obj['title']);
+                    });
+                },
+                complete:function(){
+                    // hide gif here, eg:
+                    $('#spinButton').toggleClass('active');
+                    var randomNumber = Math.floor(Math.random() * movieTitles.length);
+                    $('#movieTitle').text(movieTitles[randomNumber]+" - "+movieYears[randomNumber]);
+                    $('#movieSummary').text(movieSummary[randomNumber]);
+                    $('#movieLink').html("<a href=\"" + $('#plexURL').val()+"/web/index.html#!/search/"+encodeURIComponent(movieTitles[randomNumber]) + "\">Click to watch!</a>");
+                    console.log(randomNumber);  
+                    console.log(movieTitles);
+                    console.log(movieYears);
+                    console.log(movieSummary);
+                    console.log(movieLinks);
+                    $('#movieBox').fadeIn('slow');
+                },
+            });
+        }
+    });
+});
+function test (data) {
+    alert(data);
+    console.log(data);
+};
+</script>
+</head>
+<body>
+
+<div class="navbar navbar-default">
+      <div class="container">
+        <div class="navbar-header">
+          <a href="#" class="navbar-brand">What to watch?</a>
+        </div>
+        <div class="navbar-collapse collapse" id="navbar-main">
+
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="http://builtwithbootstrap.com/" target="_blank">Built With Bootstrap</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+<div class="row">
+<div class="col-lg-12">
+<div class="page-header ">
+  <h1>Plex, What to Watch? <small>Fill in your Plex information and click Spin!</small></h1>
+</div>
+</div>
+</div>
+<div class="col-lg-3" id="plexLoginForm">
+<div class="alert alert-success alert-dismissible hidden" id="loginSuccess" role="alert">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <strong>Congrats!</strong>Successfully logged into Plex
+</div>
+<div class="alert alert-danger alert-dismissible hidden" id="loginError" role="alert">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <strong>Error</strong><div id="topPageError"></div>
+</div>
+    <form class="bs-component">
+        <p id="alreadyLogged">Already logged in</p>
+        <div class="form-group">
+            <label class="control-label" for="plexUsername">Plex Username</label>
+            <input class="form-control" id="plexUsername" type="text">
+            <p class="help-block">Username for myPlex authentication</p>
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="plexPassword">Plex Password</label>
+            <input class="form-control" id="plexPassword" type="password">
+            <p class="help-block">Password for myPlex authentication</p>
+        </div>
+        <div class="form-group">
+            <a class="btn btn-info has-spinner" id="loginButton" role="button"><i class="fa fa-spinner fa-spin"></i>Login</a>
+            <a class="btn btn-info has-spinner" id="logOut" role="button"><i class="fa fa-spinner fa-spin"></i>Logout</a>
+        </div>
+    </form>
+</div>
+
+<div class="col-lg-3">
+    <form class="bs-component">
+        <div class="form-group">
+            <label class="control-label" for="plexURL">Plex URL</label>
+            <input class="form-control" id="plexURL" type="text">
+            <p class="help-block">Must follow URL Scheme of http://myip.com or https://myip.com</p>
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="plexPort">Plex Port</label>
+            <input class="form-control" id="plexPort" type="text" value="32400">
+        </div>
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" id="usePort"> Use Plex Port?
+             <p class="help-block">Useful for Direct Connections, or sites not behind custom URL</p>
+          </label>
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="plexSectionID">Plex Section ID <a id="plexSecID">Help find my Section IDs?</a></label>
+            <input class="form-control" id="plexSectionID" type="text">
+        </div>
+        <div class="form-group">
+            <a class="btn btn-info has-spinner" id="spinButton" role="button"><i class="fa fa-spinner fa-spin"></i>Spin!</a>
+        </div>
+    </form>
+</div>
+<div class="row">
+<div class="col-lg-8 col-lg-offset-2">
+<div class="jumbotron" id="movieBox">
+  <h1 class="text-center" id="movieTitle"></h1>
+  <p class="text-center" id="movieSummary"></p>
+  <p class="text-center" id="movieLink"></p>
+</div>
+</div>
+</div>
+<div class="col-lg-3" id="sections" style="display:none">
+<table class="table table-striped" id="sectionTable">
+<tr id="sectionList"><th>Section Name</th>
+<th>Section ID</th>
+</tr>
+
+</table>
+</div>
+</body>
+</html>
