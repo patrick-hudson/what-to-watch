@@ -1,7 +1,9 @@
 <html lang="en">
 <head>
+<script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <link rel="stylesheet" href="bootstrap.css">
-<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
 
 <style>
 .has-spinner .fa-spinner {
@@ -24,8 +26,7 @@
   margin-right:10px;
 }
 </style>
-<script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
-<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
 <script>
 function xmlToJson(xml) {
     
@@ -76,18 +77,24 @@ $(document).ready(function(){
     if(plexToken != null){
         $('#plexLoginForm :input').attr('disabled', true);
         $('#loginButton').attr('disabled', true);
+        $('#plexURLForm :input').attr('disabled', false);
+        $('#spinButton').attr('disabled', false);
         $('#alreadyLogged').show();
         $('#logOut').show();
         $('#logOut').click(function(){
             localStorage.removeItem('userToken');
             location.reload();
         });
+        $('#notLoggedIn').hide();
     }
     else{
         $('#alreadyLogged').hide();
         $('#logOut').hide();
+        $('#notLoggedIn').show();
         $('#plexLoginForm :input').attr('disabled', false);
         $('#loginButton').attr('disabled', false);
+        $('#plexURLForm :input').attr('disabled', true);
+        $('#spinButton').attr('disabled', true);
         $('#loginButton').click(function(){
             $.ajax ({
                 type: "POST",
@@ -236,6 +243,7 @@ function test (data) {
 </div>
 </div>
 <div class="col-lg-3" id="plexLoginForm">
+
 <div class="alert alert-success alert-dismissible hidden" id="loginSuccess" role="alert">
   <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
   <strong>Congrats!</strong>Successfully logged into Plex
@@ -263,7 +271,8 @@ function test (data) {
     </form>
 </div>
 
-<div class="col-lg-3">
+<div class="col-lg-3" id="plexURLForm">
+<div id="notLoggedIn"><div class="alert alert-info" role="alert">You must be logged into myPlex before you can spin</div></div>
     <form class="bs-component">
         <div class="form-group">
             <label class="control-label" for="plexURL">Plex URL</label>
