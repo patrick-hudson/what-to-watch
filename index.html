@@ -72,8 +72,8 @@ function make_base_auth(user, password) {
 }
 $(document).ready(function(){
     $('#movieBox').hide();
+
     var plexToken = localStorage.getItem('userToken');
-    console.log(plexToken);
     if(plexToken != null){
         $('#plexLoginForm :input').attr('disabled', true);
         $('#loginButton').attr('disabled', true);
@@ -83,8 +83,26 @@ $(document).ready(function(){
         $('#logOut').show();
         $('#logOut').click(function(){
             localStorage.removeItem('userToken');
+            localStorage.removeItem('savedURL');
+            localStorage.removeItem('savedPort');
+            localStorage.removeItem('savedSection');
+            $('#plexURL').val('');
+            $('#plexPort').val('');
+            $('#plexSectionID').val('');
             location.reload();
         });
+        var savedURL = localStorage.getItem('savedURL');
+        var savedPort = localStorage.getItem('savedPort');
+        var savedSection = localStorage.getItem('savedSection');
+        if(savedURL != null){
+            $('#plexURL').val(savedURL)
+        }
+        if(savedPort != null){
+            $('#plexPort').val(savedPort)
+        }
+        if(savedSection != null){
+            $('#plexSectionID').val(savedSection)
+        }
         $('#notLoggedIn').hide();
     }
     else{
@@ -108,14 +126,12 @@ $(document).ready(function(){
                     'X-Plex-Username': $('#plexUsername').val()
                 },
                 error: function (error) {
-                    console.log(error.statusText);
                     $('#topPageError').html("Error Code: " + error.status + " Error Message: " + error.statusText);
                     $('#loginError').toggleClass('hidden');
                 },
                 success: function (data) {
                     var authToken = xmlToJson(data);
                     authToken = authToken['user']['@attributes']['authenticationToken'];
-                    console.log(authToken);
                     localStorage.setItem('userToken', authToken);
                     $('#loginSuccess').toggleClass('hidden');
                     location.reload();
@@ -126,7 +142,6 @@ $(document).ready(function(){
 });
 $(document).ready(function(){
     $('#plexSecID').click(function(){
-        console.log($('#plexURL').val());
         if($('#plexURL').val() == ""){
             alert("Plex URL Empty");
         }
@@ -147,7 +162,6 @@ $(document).ready(function(){
                 success: function(res) {
                     var sections = res;
                     $('#sections').toggle();
-                    console.log(sections);
                     sections = sections['_children'];
                     $.each(sections, function(idx, obj) {
                         $("<tr><td>"+obj['title']+"</td><td>"+obj['key']+"</td></tr>").insertAfter("#sectionList")
@@ -160,7 +174,6 @@ $(document).ready(function(){
         }
     });
     $('#spinButton').click(function(){
-        console.log($('#plexURL').val());
         if($('#plexURL').val() == ""){
             alert("Plex URL Empty");
         }
@@ -171,7 +184,6 @@ $(document).ready(function(){
             else{
                 var plexURL = $('#plexURL').val() + "/library/sections/"+$('#plexSectionID').val()+"/unwatched";
             }
-            console.log(plexURL)
             var movieTitles = [];
             var movieYears = [];
             var movieSummary = [];
@@ -196,6 +208,11 @@ $(document).ready(function(){
                         movieLinks.push(obj['title']);
                     });
                 },
+                error: function (error) {
+                    $('#topPageError').html("Error Code: " + error.status + " Error Message: " + error.statusText);
+                    $('#loginError').toggleClass('hidden');
+                    $('div').remove('#movieBox');
+                },
                 complete:function(){
                     // hide gif here, eg:
                     $('#spinButton').toggleClass('active');
@@ -203,21 +220,19 @@ $(document).ready(function(){
                     $('#movieTitle').text(movieTitles[randomNumber]+" - "+movieYears[randomNumber]);
                     $('#movieSummary').text(movieSummary[randomNumber]);
                     $('#movieLink').html("<a href=\"" + $('#plexURL').val()+"/web/index.html#!/search/"+encodeURIComponent(movieTitles[randomNumber]) + "\">Click to watch!</a>");
-                    console.log(randomNumber);  
-                    console.log(movieTitles);
-                    console.log(movieYears);
-                    console.log(movieSummary);
-                    console.log(movieLinks);
                     $('#movieBox').fadeIn('slow');
+                    if($('#rememberMe').is(':checked')){
+
+                        localStorage.setItem('savedURL',  $('#plexURL').val());
+                        localStorage.setItem('savedPort', $('#plexPort').val());
+                        localStorage.setItem('savedSection', $('#plexSectionID').val());
+
+                    }
                 },
             });
         }
     });
 });
-function test (data) {
-    alert(data);
-    console.log(data);
-};
 </script>
 </head>
 <body>
@@ -242,16 +257,19 @@ function test (data) {
 </div>
 </div>
 </div>
+<div class="col-lg-12">
+<div class="alert alert-danger alert-dismissible hidden" id="loginError" role="alert">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <strong>Error</strong><div id="topPageError"></div>
+</div>
+</div>
 <div class="col-lg-3" id="plexLoginForm">
 
 <div class="alert alert-success alert-dismissible hidden" id="loginSuccess" role="alert">
   <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
   <strong>Congrats!</strong>Successfully logged into Plex
 </div>
-<div class="alert alert-danger alert-dismissible hidden" id="loginError" role="alert">
-  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-  <strong>Error</strong><div id="topPageError"></div>
-</div>
+
     <form class="bs-component">
         <p id="alreadyLogged">Already logged in</p>
         <div class="form-group">
@@ -292,6 +310,12 @@ function test (data) {
         <div class="form-group">
             <label class="control-label" for="plexSectionID">Plex Section ID <a id="plexSecID">Help find my Section IDs?</a></label>
             <input class="form-control" id="plexSectionID" type="text">
+        </div>
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" id="rememberMe"> Remember the settings?
+             <p class="help-block">Stores URL, Port, and Section ID with localStorage</p>
+          </label>
         </div>
         <div class="form-group">
             <a class="btn btn-info has-spinner" id="spinButton" role="button"><i class="fa fa-spinner fa-spin"></i>Spin!</a>
